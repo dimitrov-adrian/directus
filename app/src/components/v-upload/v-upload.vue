@@ -55,6 +55,7 @@
 				<drawer-collection
 					collection="directus_files"
 					:active="activeDialog === 'choose'"
+					:filters="filters"
 					@update:active="activeDialog = null"
 					@input="setSelection"
 				/>
@@ -120,6 +121,10 @@ export default defineComponent({
 		folder: {
 			type: String,
 			default: undefined,
+		},
+		filters: {
+			type: Array,
+			default: () => [],
 		},
 	},
 	emits: ['input'],

@@ -9,7 +9,7 @@
 					:placeholder="t('lower_limit')"
 					:allow-other="true"
 					:choices="choices"
-					autofocus
+					:autofocus="autoFocus"
 					@input="setCSV(0, $event)"
 				/>
 			</div>
@@ -21,7 +21,7 @@
 					:placeholder="t('upper_limit')"
 					:allow-other="true"
 					:choices="choices"
-					autofocus
+					:autofocus="autoFocus"
 					@input="setCSV(1, $event)"
 				/>
 			</div>
@@ -36,7 +36,7 @@
 					:disabled="disabled"
 					:allow-other="true"
 					:choices="choices"
-					autofocus
+					:autofocus="autoFocus"
 					@input="setCSV(index, $event)"
 				/>
 				<small class="remove" @click="removeCSV(val)">
@@ -58,7 +58,7 @@
 				:disabled="disabled"
 				:choices="choices"
 				:allow-other="true"
-				autofocus
+				:autofocus="autoFocus"
 				@input="internalValue = $event"
 			/>
 		</template>
@@ -92,6 +92,10 @@ export default defineComponent({
 		field: {
 			type: Object as PropType<Field>,
 			default: null,
+		},
+		autoFocus: {
+			type: Boolean,
+			default: true,
 		},
 	},
 	emits: ['update:modelValue'],

@@ -38,5 +38,17 @@ export default defineInterface({
 				width: 'half',
 			},
 		},
+		{
+			field: 'filters',
+			name: '$t:advanced_filter',
+			type: 'json',
+			meta: {
+				width: 'full',
+				interface: 'system-filter',
+				options: {
+					collectionName: 'directus_files',
+				},
+			},
+		},
 	],
 });

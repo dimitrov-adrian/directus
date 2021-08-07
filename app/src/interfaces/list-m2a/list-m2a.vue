@@ -117,6 +117,7 @@
 			:active="!!selectingFrom"
 			:collection="selectingFrom"
 			:selection="[]"
+			:filters="filters"
 			@input="stageSelection"
 			@update:active="selectingFrom = null"
 		/>
@@ -181,6 +182,10 @@ export default defineComponent({
 		enableSelect: {
 			type: Boolean,
 			default: true,
+		},
+		filters: {
+			type: Array,
+			default: () => [],
 		},
 	},
 	emits: ['input'],
