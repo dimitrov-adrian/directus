@@ -16,6 +16,11 @@
 			/>
 		</div>
 
+		<div class="field full">
+			<p class="type-label">{{ t('filter') }}</p>
+			<system-filter :value="filter" :collection-name="relatedCollection" @input="filter = $event"></system-filter>
+		</div>
+
 		<div class="field half-left">
 			<p class="type-label">{{ t('creating_items') }}</p>
 			<v-checkbox v-model="enableCreate" block :label="t('enable_create_button')" />
@@ -33,8 +38,12 @@ import { useI18n } from 'vue-i18n';
 import { Field, Collection, Relation } from '@directus/shared/types';
 import { defineComponent, PropType, computed } from 'vue';
 import { useCollectionsStore } from '@/stores/';
+import SystemFilter from '../_system/system-filter/system-filter.vue';
 
 export default defineComponent({
+	components: {
+		SystemFilter,
+	},
 	props: {
 		collection: {
 			type: String,
@@ -79,6 +88,18 @@ export default defineComponent({
 			},
 		});
 
+		const filter = computed({
+			get() {
+				return props.value?.filter || null;
+			},
+			set(newFilters: any) {
+				emit('input', {
+					...(props.value || {}),
+					filter: newFilters,
+				});
+			},
+		});
+
 		const enableCreate = computed({
 			get() {
 				return props.value?.enableCreate ?? true;
@@ -117,7 +138,7 @@ export default defineComponent({
 			return collectionsStore.getCollection(relatedCollection.value);
 		});
 
-		return { t, template, enableCreate, enableSelect, relatedCollection, relatedCollectionInfo };
+		return { t, template, filter, enableCreate, enableSelect, relatedCollection, relatedCollectionInfo };
 	},
 });
 </script>
