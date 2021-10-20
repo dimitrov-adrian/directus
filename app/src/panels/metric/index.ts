@@ -28,10 +28,22 @@ export default definePanel({
 				interface: 'system-field',
 				options: {
 					collectionField: 'collection',
-					typeAllowList: ['integer', 'bigInteger', 'float', 'decimal'],
 					allowPrimaryKey: true,
 					allowNone: true,
 				},
+				conditions: [
+					{
+						name: 'numerics',
+						rule: {
+							function: {
+								_nin: ['count', 'count_distinct'],
+							},
+						},
+						options: {
+							typeAllowList: ['integer', 'bigInteger', 'float', 'decimal'],
+						},
+					},
+				],
 				width: 'half',
 			},
 		},
