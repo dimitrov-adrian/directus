@@ -60,19 +60,23 @@ import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css';
 import { ButtonControl } from '@/utils/geometry/controls';
 import { Geometry } from 'geojson';
 import { flatten, getBBox, getParser, getSerializer, getGeometryFormatForType } from '@/utils/geometry';
-import { GeoJSONParser, GeoJSONSerializer, SimpleGeometry, MultiGeometry } from '@directus/shared/types';
+import {
+	Field,
+	GeometryType,
+	GeometryFormat,
+	GeoJSONParser,
+	GeoJSONSerializer,
+	SimpleGeometry,
+	MultiGeometry,
+} from '@directus/shared/types';
 import getSetting from '@/utils/get-setting';
 import { snakeCase, isEqual } from 'lodash';
 import styles from './style';
-import { Field, GeometryType, GeometryFormat } from '@directus/shared/types';
 import { useI18n } from 'vue-i18n';
 import { TranslateResult } from 'vue-i18n';
 import { useAppStore } from '@/stores';
 
 import { getBasemapSources, getStyleFromBasemapSource } from '@/utils/geometry/basemap';
-
-const MARKER_ICON_URL =
-	'https://cdn.jsdelivr.net/gh/google/material-design-icons/png/maps/place/materialicons/24dp/2x/baseline_place_black_24dp.png';
 
 export default defineComponent({
 	props: {
@@ -190,12 +194,6 @@ export default defineComponent({
 			map.on('load', async () => {
 				map.resize();
 				mapLoading.value = false;
-				await addMarkerImage();
-				map.on('basemapselect', () => {
-					map.once('styledata', async () => {
-						await addMarkerImage();
-					});
-				});
 				map.on('draw.create', handleDrawUpdate);
 				map.on('draw.delete', handleDrawUpdate);
 				map.on('draw.update', handleDrawUpdate);
@@ -233,7 +231,6 @@ export default defineComponent({
 					map.removeControl(controls.draw as any);
 					map.setStyle(style.value, { diff: false });
 					controls.draw = new MapboxDraw(getDrawOptions(geometryType));
-					await addMarkerImage();
 					map.addControl(controls.draw as any, 'top-left');
 					loadValueFromProps();
 				}
@@ -258,16 +255,6 @@ export default defineComponent({
 		function resetValue(hard: boolean) {
 			geometryParsingError.value = undefined;
 			if (hard) emit('input', null);
-		}
-
-		function addMarkerImage() {
-			return new Promise((resolve, reject) => {
-				map.loadImage(MARKER_ICON_URL, (error: any, image: any) => {
-					if (error) reject(error);
-					map.addImage('place', image, { sdf: true });
-					resolve(true);
-				});
-			});
 		}
 
 		function fitDataBounds(options: CameraOptions & AnimationOptions) {
@@ -449,7 +436,7 @@ export default defineComponent({
 
 	.v-info {
 		padding: 20px;
-		background-color: var(--background-subdued);
+		background-color: var(--background-input);
 		border-radius: var(--border-radius);
 		box-shadow: var(--card-shadow);
 	}

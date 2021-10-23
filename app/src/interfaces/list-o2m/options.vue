@@ -35,7 +35,8 @@
 
 <script lang="ts">
 import { useI18n } from 'vue-i18n';
-import { Field, Collection, Relation } from '@directus/shared/types';
+import { Field, Relation } from '@directus/shared/types';
+import { Collection } from '@/types';
 import { defineComponent, PropType, computed } from 'vue';
 import { useCollectionsStore } from '@/stores/';
 import SystemFilter from '../_system/system-filter/system-filter.vue';
