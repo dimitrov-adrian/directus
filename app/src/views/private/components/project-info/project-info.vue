@@ -1,7 +1,10 @@
 <template>
 	<div class="project-info">
 		<latency-indicator />
-		<span class="name">{{ name }}</span>
+		<div class="name-container">
+			<v-text-overflow placement="right" class="name" :text="name" />
+			<v-text-overflow v-if="descriptor" placement="right" class="descriptor" :text="descriptor" />
+		</div>
 	</div>
 </template>
 
@@ -16,8 +19,9 @@ export default defineComponent({
 		const serverStore = useServerStore();
 
 		const name = computed(() => serverStore.info?.project?.project_name);
+		const descriptor = computed(() => serverStore.info?.project?.project_descriptor);
 
-		return { name };
+		return { name, descriptor };
 	},
 });
 </script>
@@ -28,15 +32,26 @@ export default defineComponent({
 	display: flex;
 	align-items: center;
 	width: 100%;
-	height: 64px;
-	padding: 0 20px;
+	height: 60px;
+	padding-left: 20px;
 	color: var(--foreground-normal-alt);
 	text-align: left;
 	background-color: var(--background-normal-alt);
 
-	.name {
+	.name-container {
 		flex-grow: 1;
+		width: 100px;
 		margin-left: 12px;
+		line-height: 1.3;
+	}
+
+	.name {
+		margin-right: 8px;
+	}
+
+	.descriptor {
+		display: block;
+		color: var(--foreground-subdued);
 	}
 }
 </style>

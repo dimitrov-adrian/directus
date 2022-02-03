@@ -7,6 +7,7 @@ import { validateBatch } from '../middleware/validate-batch';
 import { ActivityService, MetaService } from '../services';
 import { Action } from '../types';
 import asyncHandler from '../utils/async-handler';
+import { getIPFromReq } from '../utils/get-ip-from-req';
 
 const router = express.Router();
 
@@ -89,7 +90,7 @@ router.post(
 			...req.body,
 			action: Action.COMMENT,
 			user: req.accountability?.user,
-			ip: req.ip,
+			ip: getIPFromReq(req),
 			user_agent: req.get('user-agent'),
 		});
 
@@ -99,7 +100,7 @@ router.post(
 			res.locals.payload = {
 				data: record || null,
 			};
-		} catch (error) {
+		} catch (error: any) {
 			if (error instanceof ForbiddenException) {
 				return next();
 			}
@@ -138,7 +139,7 @@ router.patch(
 			res.locals.payload = {
 				data: record || null,
 			};
-		} catch (error) {
+		} catch (error: any) {
 			if (error instanceof ForbiddenException) {
 				return next();
 			}

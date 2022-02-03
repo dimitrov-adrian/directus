@@ -15,7 +15,7 @@
 			<v-dialog v-model="confirmDelete" @esc="confirmDelete = false">
 				<template #activator="{ on }">
 					<v-button
-						v-tooltip.bottom="deleteAllowed ? t('delete') : t('not_allowed')"
+						v-tooltip.bottom="deleteAllowed ? t('delete_label') : t('not_allowed')"
 						rounded
 						icon
 						class="action-delete"
@@ -33,8 +33,8 @@
 						<v-button secondary @click="confirmDelete = false">
 							{{ t('cancel') }}
 						</v-button>
-						<v-button class="action-delete" :loading="deleting" @click="deleteAndQuit">
-							{{ t('delete') }}
+						<v-button kind="danger" :loading="deleting" @click="deleteAndQuit">
+							{{ t('delete_label') }}
 						</v-button>
 					</v-card-actions>
 				</v-card>
@@ -92,16 +92,18 @@
 				rounded
 				icon
 				:loading="saving"
-				:disabled="hasEdits === false || saveAllowed === false"
+				:disabled="!isSavable"
 				@click="saveAndQuit"
 			>
 				<v-icon name="check" />
 
 				<template #append-outer>
 					<save-options
-						v-if="hasEdits === true || saveAllowed === true"
+						v-if="isSavable"
+						:disabled-options="['save-and-add-new']"
 						@save-and-stay="saveAndStay"
 						@save-as-copy="saveAsCopyAndNavigate"
+						@discard-and-stay="discardAndStay"
 					/>
 				</template>
 			</v-button>
@@ -178,14 +180,14 @@
 import { useI18n } from 'vue-i18n';
 import { defineComponent, computed, toRefs, ref, watch, ComponentPublicInstance } from 'vue';
 import FilesNavigation from '../components/navigation.vue';
-import { useRouter, onBeforeRouteUpdate, onBeforeRouteLeave, NavigationGuard } from 'vue-router';
+import { useRouter } from 'vue-router';
 import RevisionsDrawerDetail from '@/views/private/components/revisions-drawer-detail';
 import CommentsSidebarDetail from '@/views/private/components/comments-sidebar-detail';
 import useItem from '@/composables/use-item';
 import SaveOptions from '@/views/private/components/save-options';
 import FilePreview from '@/views/private/components/file-preview';
 import ImageEditor from '@/views/private/components/image-editor';
-import { Field } from '@/types';
+import { Field } from '@directus/shared/types';
 import FileInfoSidebarDetail from '../components/file-info-sidebar-detail.vue';
 import FolderPicker from '../components/folder-picker.vue';
 import api, { addTokenToURL } from '@/api';
@@ -196,7 +198,7 @@ import ReplaceFile from '../components/replace-file.vue';
 import { usePermissions } from '@/composables/use-permissions';
 import { notify } from '@/utils/notify';
 import { unexpectedError } from '@/utils/unexpected-error';
-import unsavedChanges from '@/composables/unsaved-changes';
+import useEditsGuard from '@/composables/use-edits-guard';
 
 export default defineComponent({
 	name: 'FilesItem',
@@ -233,6 +235,7 @@ export default defineComponent({
 		const {
 			isNew,
 			edits,
+			hasEdits,
 			item,
 			saving,
 			loading,
@@ -246,9 +249,9 @@ export default defineComponent({
 			validationErrors,
 		} = useItem(ref('directus_files'), primaryKey);
 
-		const hasEdits = computed<boolean>(() => Object.keys(edits.value).length > 0);
+		const isSavable = computed(() => saveAllowed.value && hasEdits.value);
 
-		unsavedChanges(hasEdits);
+		const { confirmLeave, leaveTo } = useEditsGuard(hasEdits);
 
 		const confirmDelete = ref(false);
 		const editActive = ref(false);
@@ -284,22 +287,9 @@ export default defineComponent({
 			else return '/files';
 		});
 
-		const confirmLeave = ref(false);
-		const leaveTo = ref<string | null>(null);
-
 		const { moveToDialogActive, moveToFolder, moving, selectedFolder } = useMovetoFolder();
 
 		useShortcut('meta+s', saveAndStay, form);
-
-		const editsGuard: NavigationGuard = (to) => {
-			if (hasEdits.value) {
-				confirmLeave.value = true;
-				leaveTo.value = to.fullPath;
-				return false;
-			}
-		};
-		onBeforeRouteUpdate(editsGuard);
-		onBeforeRouteLeave(editsGuard);
 
 		const { deleteAllowed, saveAllowed, updateAllowed, fields, revisionsAllowed } = usePermissions(
 			ref('directus_files'),
@@ -328,6 +318,7 @@ export default defineComponent({
 			deleting,
 			saveAndStay,
 			saveAsCopyAndNavigate,
+			discardAndStay,
 			isBatch,
 			editActive,
 			revisionsDrawerDetail,
@@ -351,6 +342,7 @@ export default defineComponent({
 			fieldsFiltered,
 			revisionsAllowed,
 			validationErrors,
+			isSavable,
 		};
 
 		function useBreadcrumb() {
@@ -387,7 +379,7 @@ export default defineComponent({
 		async function saveAndStay() {
 			try {
 				await save();
-				revisionsDrawerDetail.value?.$data?.refresh?.();
+				revisionsDrawerDetail.value?.refresh?.();
 			} catch {
 				// `save` will show unexpected error dialog
 			}
@@ -401,16 +393,23 @@ export default defineComponent({
 		async function deleteAndQuit() {
 			try {
 				await remove();
-				router.push(to.value);
+				router.replace(to.value);
 			} catch {
 				// `remove` will show the unexpected error dialog
+				confirmDelete.value = false;
 			}
 		}
 
 		function discardAndLeave() {
 			if (!leaveTo.value) return;
 			edits.value = {};
+			confirmLeave.value = false;
 			router.push(leaveTo.value);
+		}
+
+		function discardAndStay() {
+			edits.value = {};
+			confirmLeave.value = false;
 		}
 
 		function downloadFile() {
@@ -453,7 +452,7 @@ export default defineComponent({
 						type: 'success',
 						icon: 'folder_move',
 					});
-				} catch (err) {
+				} catch (err: any) {
 					unexpectedError(err);
 				} finally {
 					moveToDialogActive.value = false;

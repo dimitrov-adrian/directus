@@ -8,6 +8,7 @@
 
 		<template #title>
 			<h1 class="type-title">{{ title }}</h1>
+			<v-chip v-if="modularExtension" disabled small>Modular Extension</v-chip>
 		</template>
 
 		<template #navigation>
@@ -15,7 +16,7 @@
 		</template>
 
 		<div class="docs-content selectable">
-			<markdown>{{ markdownWithoutTitle }}</markdown>
+			<router-view @update:title="title = $event" @update:modular-extension="modularExtension = $event" />
 		</div>
 
 		<template #sidebar>
@@ -28,62 +29,22 @@
 
 <script lang="ts">
 import { useI18n } from 'vue-i18n';
-import { defineComponent, defineAsyncComponent, ref, computed, watch } from 'vue';
-import { useRoute, RouteLocation } from 'vue-router';
+import { defineComponent, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import DocsNavigation from '../components/navigation.vue';
-
-const Markdown = defineAsyncComponent(() => import('../components/markdown.vue'));
-
-async function getMarkdownForRoute(route: RouteLocation): Promise<string> {
-	const importDocs = route.meta.import as () => Promise<{ default: string }>;
-
-	const mdModule = await importDocs();
-	return mdModule.default;
-}
 
 export default defineComponent({
 	name: 'StaticDocs',
-	components: { DocsNavigation, Markdown },
+	components: { DocsNavigation },
 	setup() {
 		const { t } = useI18n();
 
 		const route = useRoute();
 
-		const markdown = ref('');
-		const title = computed(() => {
-			const lines = markdown.value.split('\n');
+		const title = ref('Test');
+		const modularExtension = ref(false);
 
-			for (let i = 0; i < lines.length; i++) {
-				if (lines[i].startsWith('# ')) {
-					return lines[i].substring(2).trim();
-				}
-			}
-
-			return null;
-		});
-
-		const markdownWithoutTitle = computed(() => {
-			const lines = markdown.value.split('\n');
-
-			for (let i = 0; i < lines.length; i++) {
-				if (lines[i].startsWith('# ')) {
-					lines.splice(i, 1);
-					break;
-				}
-			}
-
-			return lines.join('\n');
-		});
-
-		watch(
-			() => route.path,
-			async () => {
-				markdown.value = await getMarkdownForRoute(route);
-			},
-			{ immediate: true, flush: 'post' }
-		);
-
-		return { t, route, markdown, title, markdownWithoutTitle };
+		return { t, route, title, modularExtension };
 	},
 });
 </script>
@@ -91,5 +52,13 @@ export default defineComponent({
 <style lang="scss" scoped>
 .docs-content {
 	padding: 0 var(--content-padding) var(--content-padding-bottom);
+}
+
+.v-chip {
+	--v-chip-background-color: var(--v-chip-background-color-hover);
+	--v-chip-color: var(--v-chip-color-hover);
+
+	margin-left: 12px;
+	cursor: default !important;
 }
 </style>

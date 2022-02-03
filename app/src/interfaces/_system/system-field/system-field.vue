@@ -11,16 +11,16 @@
 		:model-value="value"
 		:disabled="disabled"
 		:items="selectItems"
-		:placeholder="placeholder"
+		:placeholder="placeholder || t('select_a_field')"
 		@update:model-value="$emit('input', $event)"
 	/>
 </template>
 
 <script lang="ts">
 import { useI18n } from 'vue-i18n';
-import { defineComponent, computed, inject, ref, PropType } from 'vue';
+import { defineComponent, computed, inject, ref, PropType, watch } from 'vue';
 import { useFieldsStore } from '@/stores';
-import { Field } from '@/types';
+import { Field } from '@directus/shared/types';
 
 export default defineComponent({
 	props: {
@@ -56,37 +56,38 @@ export default defineComponent({
 			type: Boolean,
 			default: false,
 		},
+		allowPrimaryKey: {
+			type: Boolean,
+			default: false,
+		},
 	},
 	emits: ['input'],
-	setup(props) {
+	setup(props, { emit }) {
 		const { t } = useI18n();
 
 		const fieldsStore = useFieldsStore();
 
 		const values = inject('values', ref<Record<string, any>>({}));
 
-		const collection = computed(() => {
-			if (props.collectionField) {
-				return values.value[props.collectionField];
-			}
-
-			if (props.collectionKey) {
-				return props.collectionKey;
-			}
-
-			return props.collection;
-		});
+		const collection = computed(() => values.value[props.collectionField] || props.collection);
 
 		const fields = computed(() => {
-			if (!collection.value) return [];
+			if (!props.collectionField && !props.collection) return [];
 			return fieldsStore.getFieldsForCollection(collection.value);
+		});
+
+		// Reset value whenever the chosen collection changes
+		watch(collection, (newCol, oldCol) => {
+			if (oldCol !== null && newCol !== oldCol) {
+				emit('input', null);
+			}
 		});
 
 		const selectItems = computed(() =>
 			fields.value.map((field: Field) => {
 				let disabled = false;
 
-				if (field?.schema?.is_primary_key === true) disabled = true;
+				if (props.allowPrimaryKey === false && field?.schema?.is_primary_key === true) disabled = true;
 				if (props.typeAllowList.length > 0 && props.typeAllowList.includes(field.type) === false) disabled = true;
 
 				return {

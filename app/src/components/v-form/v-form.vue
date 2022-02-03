@@ -19,13 +19,14 @@
 
 		<template v-for="(field, index) in formFields">
 			<component
-				:is="`interface-${field.meta?.interface || 'group-raw'}`"
+				:is="`interface-${field.meta?.interface || 'group-standard'}`"
 				v-if="field.meta?.special?.includes('group')"
+				v-show="!field.meta?.hidden"
 				:key="field.field"
-				:class="field.meta?.width || 'full'"
+				:class="[field.meta?.width || 'full', index === firstVisibleFieldIndex ? 'first-visible-field' : '']"
 				:field="field"
-				:fields="getFieldsForGroup(field.meta.id)"
-				:values="values || {}"
+				:fields="fieldsForGroup[index]"
+				:values="modelValue || {}"
 				:initial-values="initialValues || {}"
 				:disabled="disabled"
 				:batch-mode="batchMode"
@@ -38,18 +39,20 @@
 			/>
 
 			<form-field
-				v-else
+				v-else-if="!field.meta?.hidden"
 				:key="field.field"
+				:class="index === firstVisibleFieldIndex ? 'first-visible-field' : ''"
 				:field="field"
 				:autofocus="index === firstEditableFieldIndex && autofocus"
 				:model-value="(values || {})[field.field]"
 				:initial-value="(initialValues || {})[field.field]"
-				:disabled="disabled"
+				:disabled="isDisabled(field)"
 				:batch-mode="batchMode"
 				:batch-active="batchActiveFields.includes(field.field)"
 				:primary-key="primaryKey"
 				:loading="loading"
 				:validation-error="validationErrors.find((err) => err.field === field.field)"
+				:badge="badge"
 				@update:model-value="setValue(field, $event)"
 				@unset="unsetValue(field)"
 				@toggle-batch="toggleBatchField(field)"
@@ -62,12 +65,12 @@
 import { useI18n } from 'vue-i18n';
 import { defineComponent, PropType, computed, ref, provide } from 'vue';
 import { useFieldsStore } from '@/stores/';
-import { Field, FieldRaw } from '@/types';
-import { clone, cloneDeep, isNil, merge, omit } from 'lodash';
+import { Field, FieldRaw, ValidationError } from '@directus/shared/types';
+import { assign, cloneDeep, isNil, omit, pick } from 'lodash';
 import useFormFields from '@/composables/use-form-fields';
-import { ValidationError } from '@/types';
 import { useElementSize } from '@/composables/use-element-size';
 import FormField from './form-field.vue';
+import { applyConditions } from '@/utils/apply-conditions';
 
 type FieldValues = {
 	[field: string]: any;
@@ -119,7 +122,11 @@ export default defineComponent({
 			default: false,
 		},
 		group: {
-			type: Number,
+			type: String,
+			default: null,
+		},
+		badge: {
+			type: String,
 			default: null,
 		},
 	},
@@ -147,12 +154,21 @@ export default defineComponent({
 			}
 		});
 
-		const { formFields, getFieldsForGroup } = useForm();
+		const { formFields, getFieldsForGroup, fieldsForGroup, isDisabled } = useForm();
 		const { toggleBatchField, batchActiveFields } = useBatch();
 
 		const firstEditableFieldIndex = computed(() => {
 			for (let i = 0; i < formFields.value.length; i++) {
-				if (formFields.value[i].meta && !formFields.value[i].meta.readonly) {
+				if (formFields.value[i].meta && !formFields.value[i].meta?.readonly && !formFields.value[i].meta?.hidden) {
+					return i;
+				}
+			}
+			return null;
+		});
+
+		const firstVisibleFieldIndex = computed(() => {
+			for (let i = 0; i < formFields.value.length; i++) {
+				if (formFields.value[i].meta && !formFields.value[i].meta?.hidden) {
 					return i;
 				}
 			}
@@ -165,8 +181,18 @@ export default defineComponent({
 		 * admin can be made aware
 		 */
 		const unknownValidationErrors = computed(() => {
+			const fieldsInGroup = getFieldsForGroup(props.group);
+			const fieldsInGroupKeys = fieldsInGroup.map((field) => field.field);
 			const fieldKeys = formFields.value.map((field: FieldRaw) => field.field);
-			return props.validationErrors.filter((error) => fieldKeys.includes(error.field) === false);
+			return props.validationErrors.filter((error) => {
+				let included = fieldKeys.includes(error.field) === false && fieldsInGroupKeys.includes(error.field);
+
+				if (props.group === null) {
+					included = included && fieldsInGroup.find((field) => field.field === error.field)?.meta?.group === null;
+				}
+
+				return included;
+			});
 		});
 
 		provide('values', values);
@@ -181,12 +207,15 @@ export default defineComponent({
 			unsetValue,
 			unknownValidationErrors,
 			firstEditableFieldIndex,
+			firstVisibleFieldIndex,
 			isNil,
 			apply,
 			el,
 			gridClass,
 			omit,
 			getFieldsForGroup,
+			fieldsForGroup,
+			isDisabled,
 		};
 
 		function useForm() {
@@ -202,16 +231,27 @@ export default defineComponent({
 				throw new Error('[v-form]: You need to pass either the collection or fields prop.');
 			});
 
-			const fieldsInGroup = computed(() =>
-				fields.value.filter(
-					(field) => field.meta?.group === props.group || (props.group === null && isNil(field.meta?.group))
-				)
-			);
+			const defaultValues = computed(() => {
+				return fields.value.reduce(function (acc, field) {
+					if (
+						field.schema?.default_value !== undefined &&
+						// Ignore autoincremented integer PK field
+						!(
+							field.schema.is_primary_key &&
+							field.schema.data_type === 'integer' &&
+							typeof field.schema.default_value === 'string'
+						)
+					) {
+						acc[field.field] = field.schema?.default_value;
+					}
+					return acc;
+				}, {} as Record<string, any>);
+			});
 
-			const { formFields } = useFormFields(fieldsInGroup);
+			const fieldsParsed = computed(() => {
+				if (props.group !== null) return fields.value;
 
-			const formFieldsParsed = computed(() => {
-				const blockPrimaryKey = (field: Field) => {
+				const setPrimaryKeyReadonly = (field: Field) => {
 					if (
 						field.schema?.has_auto_increment === true ||
 						(field.schema?.is_primary_key === true && props.primaryKey !== '+')
@@ -225,28 +265,41 @@ export default defineComponent({
 					return field;
 				};
 
-				return formFields.value.map((field) => blockPrimaryKey(field));
+				const valuesWithDefaults = Object.assign({}, defaultValues.value, values.value);
+
+				return fields.value.map((field) => applyConditions(valuesWithDefaults, setPrimaryKeyReadonly(field)));
 			});
 
-			return { formFields: formFieldsParsed, isDisabled, getFieldsForGroup };
+			const fieldsInGroup = computed(() =>
+				fieldsParsed.value.filter(
+					(field) => field.meta?.group === props.group || (props.group === null && isNil(field.meta?.group))
+				)
+			);
+
+			const { formFields } = useFormFields(fieldsInGroup);
+
+			const fieldsForGroup = computed(() => formFields.value.map((field) => getFieldsForGroup(field.meta!.field)));
+
+			return { formFields, isDisabled, getFieldsForGroup, fieldsForGroup };
 
 			function isDisabled(field: Field) {
 				return (
 					props.loading ||
 					props.disabled === true ||
 					field.meta?.readonly === true ||
+					field.schema?.is_generated === true ||
 					(props.batchMode && batchActiveFields.value.includes(field.field) === false)
 				);
 			}
 
-			function getFieldsForGroup(group: null | number): Field[] {
-				const fieldsInGroup: Field[] = fields.value.filter(
+			function getFieldsForGroup(group: null | string): Field[] {
+				const fieldsInGroup: Field[] = fieldsParsed.value.filter(
 					(field) => field.meta?.group === group || (group === null && isNil(field.meta))
 				);
 
 				for (const field of fieldsInGroup) {
 					if (field.meta?.special?.includes('group')) {
-						fieldsInGroup.push(...getFieldsForGroup(field.meta!.id));
+						fieldsInGroup.push(...getFieldsForGroup(field.meta!.field));
 					}
 				}
 
@@ -255,13 +308,13 @@ export default defineComponent({
 		}
 
 		function setValue(field: Field, value: any) {
-			const edits = props.modelValue ? clone(props.modelValue) : {};
+			const edits = props.modelValue ? cloneDeep(props.modelValue) : {};
 			edits[field.field] = value;
 			emit('update:modelValue', edits);
 		}
 
 		function apply(updates: { [field: string]: any }) {
-			emit('update:modelValue', merge({}, props.modelValue, updates));
+			emit('update:modelValue', pick(assign({}, props.modelValue, updates), Object.keys(updates)));
 		}
 
 		function unsetValue(field: Field) {
@@ -297,5 +350,9 @@ export default defineComponent({
 
 .v-form {
 	@include form-grid;
+}
+
+.v-form .first-visible-field :deep(.v-divider) {
+	margin-top: 0;
 }
 </style>

@@ -39,7 +39,7 @@
 		</div>
 
 		<template v-if="!loading" #actions>
-			<actions :role-key="roleKey" :permission="permission" @refresh="$emit('refresh', +permissionKey)" />
+			<actions :role-key="roleKey" :permission="permission" @refresh="$emit('refresh', Number(permissionKey))" />
 		</template>
 	</v-drawer>
 </template>
@@ -48,7 +48,7 @@
 import { useI18n } from 'vue-i18n';
 import { defineComponent, ref, computed, watch } from 'vue';
 import api from '@/api';
-import { Permission, Role } from '@/types';
+import { Permission, Role } from '@directus/shared/types';
 import { useCollectionsStore } from '@/stores/';
 import { useRouter } from 'vue-router';
 import Actions from './components/actions.vue';
@@ -61,6 +61,7 @@ import Presets from './components/presets.vue';
 import { unexpectedError } from '@/utils/unexpected-error';
 import { appMinimalPermissions } from '../app-permissions';
 import { useDialogRoute } from '@/composables/use-dialog-route';
+import { isPermissionEmpty } from '@/utils/is-permission-empty';
 
 export default defineComponent({
 	components: { Actions, Tabs, Permissions, Fields, Validation, Presets },
@@ -101,7 +102,7 @@ export default defineComponent({
 				return role.value!.name + ' -> ' + collectionName.value + ' -> ' + t(permission.value.action);
 			}
 
-			return t('public') + ' -> ' + collectionName.value + ' -> ' + t(permission.value.action);
+			return t('public_label') + ' -> ' + collectionName.value + ' -> ' + t(permission.value.action);
 		});
 
 		watch(() => props.permissionKey, load, { immediate: true });
@@ -113,7 +114,7 @@ export default defineComponent({
 
 			const tabs = [];
 
-			if (['read', 'update', 'delete'].includes(action)) {
+			if (['read', 'update', 'delete', 'share'].includes(action)) {
 				tabs.push({
 					text: t('item_permissions'),
 					value: 'permissions',
@@ -175,8 +176,13 @@ export default defineComponent({
 
 		return { isOpen, permission, role, loading, modalTitle, tabs, currentTab, currentTabInfo, appMinimal, close };
 
-		function close() {
-			router.push(`/settings/roles/${props.roleKey || 'public'}`);
+		async function close() {
+			if (permission.value && isPermissionEmpty(permission.value)) {
+				await api.delete(`/permissions/${permission.value.id}`);
+				router.replace(`/settings/roles/${props.roleKey || 'public'}`);
+			} else {
+				router.push(`/settings/roles/${props.roleKey || 'public'}`);
+			}
 		}
 
 		async function load() {
@@ -190,7 +196,7 @@ export default defineComponent({
 
 				const response = await api.get(`/permissions/${props.permissionKey}`);
 				permission.value = response.data.data;
-			} catch (err) {
+			} catch (err: any) {
 				if (err?.response?.status === 403) {
 					router.push(`/settings/roles/${props.roleKey || 'public'}`);
 				} else {

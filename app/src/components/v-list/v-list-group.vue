@@ -1,26 +1,39 @@
 <template>
-	<div class="v-list-group">
+	<li class="v-list-group">
 		<v-list-item
 			class="activator"
 			:active="active"
 			:to="to"
 			:exact="exact"
+			:query="query"
 			:disabled="disabled"
 			:dense="dense"
 			clickable
 			@click="onClick"
 		>
+			<v-list-item-icon
+				v-if="$slots.default && arrowPlacement && arrowPlacement === 'before'"
+				class="activator-icon"
+				:class="{ active: groupActive }"
+			>
+				<v-icon name="chevron_right" :disabled="disabled" @click.stop.prevent="toggle" />
+			</v-list-item-icon>
+
 			<slot name="activator" :active="groupActive" />
 
-			<v-list-item-icon v-if="$slots.default" class="activator-icon" :class="{ active: groupActive }">
+			<v-list-item-icon
+				v-if="$slots.default && arrowPlacement && arrowPlacement === 'after'"
+				class="activator-icon"
+				:class="{ active: groupActive }"
+			>
 				<v-icon name="chevron_right" :disabled="disabled" @click.stop.prevent="toggle" />
 			</v-list-item-icon>
 		</v-list-item>
 
-		<div v-if="groupActive" class="items">
+		<ul v-if="groupActive" class="items">
 			<slot />
-		</div>
-	</div>
+		</ul>
+	</li>
 </template>
 
 <script lang="ts">
@@ -39,9 +52,13 @@ export default defineComponent({
 		},
 		active: {
 			type: Boolean,
-			default: false,
+			default: undefined,
 		},
 		exact: {
+			type: Boolean,
+			default: false,
+		},
+		query: {
 			type: Boolean,
 			default: false,
 		},
@@ -55,7 +72,7 @@ export default defineComponent({
 		},
 		scope: {
 			type: String,
-			default: undefined,
+			default: 'v-list',
 		},
 		value: {
 			type: [String, Number],
@@ -68,6 +85,11 @@ export default defineComponent({
 		open: {
 			type: Boolean,
 			default: false,
+		},
+		arrowPlacement: {
+			type: [String, Boolean],
+			default: 'after',
+			validator: (val: string | boolean) => ['before', 'after', false].includes(val),
 		},
 	},
 	emits: ['click'],
@@ -101,6 +123,7 @@ export default defineComponent({
 	}
 
 	.activator-icon {
+		margin-right: 0 !important;
 		color: var(--foreground-subdued);
 		transform: rotate(0deg);
 		transition: transform var(--medium) var(--transition);
@@ -115,7 +138,8 @@ export default defineComponent({
 	}
 
 	.items {
-		padding-left: 16px;
+		padding-left: 18px;
+		list-style: none;
 	}
 }
 </style>
