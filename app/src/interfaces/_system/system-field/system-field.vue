@@ -28,10 +28,6 @@ export default defineComponent({
 			type: String,
 			default: null,
 		},
-		collectionKey: {
-			type: String,
-			default: null,
-		},
 		collection: {
 			type: String,
 			default: null,
