@@ -38,7 +38,7 @@
 					<div class="arrow" :class="{ active: showArrow && isActive }" :style="arrowStyles" data-popper-arrow />
 					<div
 						class="v-menu-content"
-						:class="{ 'full-height': fullHeight, seamless }"
+						:class="{ 'full-height': fullHeight, seamless, 'has-outscroll-items': hasOutscrollItems }"
 						@click.stop="onContentClick"
 						@pointerenter.stop="onPointerEnter"
 						@pointerleave.stop="onPointerLeave"
@@ -168,6 +168,10 @@ export default defineComponent({
 
 				nextTick(() => {
 					popper.value = document.getElementById(id.value);
+
+					if (!props.fullHeight) {
+						setOutscrollLineHandler(popper.value?.querySelector('.v-menu-content'));
+					}
 				});
 			}
 		});
@@ -175,6 +179,8 @@ export default defineComponent({
 		const { onClick, onPointerEnter, onPointerLeave } = useEvents();
 
 		const hoveringOnPopperContent = ref(false);
+
+		const hasOutscrollItems = ref(false);
 
 		return {
 			id,
@@ -194,6 +200,7 @@ export default defineComponent({
 			onPointerLeave,
 			onPointerEnter,
 			hoveringOnPopperContent,
+			hasOutscrollItems,
 		};
 
 		function useActiveState() {
@@ -295,6 +302,19 @@ export default defineComponent({
 			function onPointerLeave() {
 				if (props.trigger !== 'hover') return;
 				isHovered.value = false;
+			}
+		}
+
+		function setOutscrollLineHandler(element: HTMLElement | null | undefined) {
+			if (!element) return;
+			if (element.scrollHeight < element.clientHeight) return;
+
+			element.addEventListener('scroll', toggleLine, true);
+			toggleLine();
+
+			function toggleLine() {
+				if (!element) return;
+				hasOutscrollItems.value = element.scrollTop + element.clientHeight < element.scrollHeight - 4;
 			}
 		}
 	},
@@ -407,6 +427,10 @@ body {
 
 	.v-list {
 		--v-list-background-color: transparent;
+	}
+
+	&.has-outscroll-items {
+		border-bottom: 1px dashed var(--v-divider-color);
 	}
 }
 
